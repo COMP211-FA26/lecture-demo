@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inside a buffered C file stream</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#203047;background:#f2f5f9}*{box-sizing:border-box}body{max-width:1300px;margin:auto;padding:18px}h1{font-size:25px;margin:0 0 14px}.layout{display:grid;grid-template-columns:1.15fr 1fr;gap:14px}.panel{background:white;border:1px solid #dce3ed;border-radius:13px;padding:16px;min-width:0}.heading{font-size:17px;font-weight:750;margin-bottom:12px}.code{background:#17283e;color:#e7f0fb;padding:10px 8px;border-radius:9px;overflow:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}.line{display:block;white-space:pre;padding:0 7px;border-radius:4px}.line.active{background:#385c83;outline:1px solid #80b5f0}.line-number{display:inline-block;width:2.3ch;color:#93a6bd;user-select:none;margin-right:1.3ch;text-align:right}.controls{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}button{background:#205fae;color:white;border:0;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}button.secondary{background:#e7edf5;color:#244b75}button:disabled{opacity:.5;cursor:default}.message{background:#f2f6fb;padding:9px 11px;border-radius:8px;font-size:13px;min-height:35px}.output{font:700 23px ui-monospace,monospace;min-height:31px;overflow-wrap:anywhere}.subhead{font-size:13px;font-weight:700;color:#50647d;margin:12px 0 6px}.var-row{display:grid;grid-template-columns:110px 1fr;gap:8px;padding:8px 10px;border-bottom:1px solid #e5eaf1;font:14px ui-monospace,monospace;border-radius:5px}.var-row:last-child{border:0}.var-row.changed{background:#fff1ae;animation:flash 1.5s ease-out}@keyframes flash{0%{background:#ffe074}100%{background:#fff1ae}}.var-name{font-weight:700}.var-value{overflow-wrap:anywhere}.bottom{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px}.cells,.pointer-track{display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}.cell,.pointer-slot{flex:0 0 40px;width:40px;text-align:center}.cell{height:53px;border:2px solid #d2dce8;border-radius:7px;background:#f8fafc;font-size:21px;font-weight:700;position:relative;display:flex;align-items:center;justify-content:center}.cell small{position:absolute;top:2px;left:4px;font-size:10px;font-weight:400;color:#6b7b8d}.cell.used{background:#e3f2e7}.cell.next{background:#fff0d0}.cell.unread{background:#e1efff}.cell.empty{color:#b7c0cc}.pointer-track{margin-top:3px}.pointer-slot{height:22px;color:transparent;font-size:20px;line-height:22px}.file-arrow .target{color:#7142b7}.buffer-arrow .target{color:#bd267d}.pointer-label{font-size:12px;font-weight:750;margin:3px 0 12px}.offset-color{color:#7142b7}.pos-color{color:#bd267d}.struct{background:#f6f8fb;border:1px solid #e1e7ef;border-radius:9px;padding:12px;font:13px/1.8 ui-monospace,monospace;overflow-x:auto}.structline{display:grid;grid-template-columns:19ch max-content;gap:8px;align-items:baseline;width:max-content;max-width:100%;padding:1px 5px;border-radius:4px}.structline strong{color:#215b95}.structline.offset-field{background:#f0eaff;border-left:4px solid #7142b7}.structline.pos-field{background:#fce8f5;border-left:4px solid #bd267d}.structline.offset-field strong{color:#7142b7}.structline.pos-field strong{color:#bd267d}.structline.changed{outline:2px solid #e9bb45}.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.stat{background:#f2f6fb;border-radius:8px;padding:8px 11px;font-size:12px}.stat strong{font-size:19px;display:block}.small{font-size:12px;color:#65768a}.color-key{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin-top:9px;font-size:12px;color:#50647d}.key-item{display:inline-flex;align-items:center;gap:5px}.swatch{display:inline-block;width:13px;height:13px;border:1px solid #cad4e1;border-radius:3px}.swatch.used{background:#e3f2e7}.swatch.next{background:#fff0d0}.swatch.unread{background:#e1efff}.swatch.empty{background:#f8fafc}.selector{padding:6px;border:1px solid #bdc9d9;border-radius:6px;background:white}.osstate{margin-top:12px;background:#f4f0fc;border:1px solid #d7c5ee;border-radius:8px;padding:9px 12px;font:13px ui-monospace,monospace;display:flex;align-items:center;gap:12px;flex-wrap:wrap}.osstate strong{color:#7142b7}.sectionrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}@media(max-width:850px){.layout,.bottom{grid-template-columns:1fr}.bottom{grid-column:auto}body{padding:10px}}
+
+/* Single-screen lecture layout, optimized for a 1366×768 or 1920×1080 projector. */
+html,body{height:100%;margin:0;overflow:hidden}
+body{max-width:none;width:100%;padding:clamp(7px,1vh,12px) clamp(10px,1.1vw,22px);display:flex;flex-direction:column}
+h1{font-size:clamp(19px,2.5vh,29px);line-height:1.12;margin:0 0 clamp(5px,.8vh,10px)}
+.layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.22fr) minmax(0,.78fr);grid-template-rows:minmax(0,1.13fr) minmax(0,.87fr);gap:clamp(6px,.85vh,12px)}
+.bottom{grid-column:1/-1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(6px,.85vh,12px)}
+.panel{min-height:0;overflow:hidden;padding:clamp(8px,1.1vh,15px) clamp(10px,1vw,18px);border-radius:10px}
+.heading{font-size:clamp(16px,2.1vh,23px);line-height:1.1;margin-bottom:clamp(5px,.7vh,9px)}
+.code{font-size:clamp(11px,1.67vh,17px);line-height:1.19;padding:clamp(5px,.7vh,9px);overflow:hidden}
+.line{padding:0 4px}.line-number{width:2ch;margin-right:1ch}
+.controls{margin:clamp(5px,.8vh,9px) 0;gap:8px}
+button{font-size:clamp(13px,1.75vh,18px);padding:clamp(6px,.8vh,10px) 12px}
+.message{font-size:clamp(12px,1.65vh,17px);line-height:1.2;padding:clamp(5px,.7vh,8px) 9px;min-height:0}
+.var-row{font-size:clamp(14px,2vh,20px);grid-template-columns:clamp(65px,8vw,110px) 1fr;padding:clamp(6px,1vh,11px) 9px}
+.subhead{font-size:clamp(13px,1.8vh,18px);margin:clamp(8px,1.2vh,14px) 0 5px}
+.output{font-size:clamp(19px,2.8vh,28px);min-height:clamp(24px,3.5vh,35px)}
+.stats{margin-top:clamp(7px,1vh,12px);gap:6px;flex-wrap:nowrap}
+.stat{font-size:clamp(10px,1.55vh,16px);padding:clamp(5px,.7vh,9px) clamp(6px,.7vw,11px);flex:1;min-width:0}
+.stat strong{font-size:clamp(18px,2.7vh,27px);margin-top:3px}
+.small{font-size:clamp(11px,1.5vh,15px)}
+.cell,.pointer-slot{flex:0 0 clamp(30px,3vw,44px);width:clamp(30px,3vw,44px)}
+.cell{height:clamp(40px,5.7vh,58px);font-size:clamp(17px,2.7vh,25px)}
+.cell small{font-size:clamp(9px,1.3vh,12px)}
+.cells,.pointer-track{gap:clamp(2px,.35vw,5px);overflow:hidden}
+.pointer-slot{height:clamp(17px,2.5vh,25px);font-size:clamp(16px,2.6vh,24px);line-height:1}
+.pointer-track{margin-top:2px}
+.pointer-label{font-size:clamp(12px,1.7vh,17px);margin:0 0 clamp(5px,.8vh,9px)}
+.color-key{font-size:clamp(10px,1.45vh,14px);gap:clamp(6px,.9vw,14px);margin-top:clamp(5px,.8vh,9px)}
+.key-item{gap:4px}.swatch{width:clamp(10px,1.5vh,15px);height:clamp(10px,1.5vh,15px)}
+.struct{font-size:clamp(11px,1.65vh,16px);line-height:1.18;padding:clamp(5px,.7vh,9px);overflow:hidden}
+.structline{grid-template-columns:19ch max-content;gap:6px;padding:0 4px}
+.osstate{margin-top:clamp(6px,1vh,10px);font-size:clamp(12px,1.8vh,17px);padding:clamp(6px,.8vh,9px) 10px}
+.selector{font-size:clamp(11px,1.6vh,15px);padding:4px;max-width:35%}
+.sectionrow{flex-wrap:nowrap}
+@media(max-width:950px){.layout{grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr)}.stats{flex-wrap:wrap}.stat{flex:0 0 31%}.code{font-size:clamp(10px,1.5vh,14px)}}
+@media(max-height:680px){.layout{grid-template-rows:minmax(0,1.22fr) minmax(0,.78fr)}.code{font-size:clamp(10px,1.55vh,14px)}.panel{padding:6px 10px}.heading{margin-bottom:4px}.color-key{margin-top:4px}.osstate{margin-top:4px}.subhead{margin-top:6px}}
+@media(max-width:700px){html,body{height:auto;overflow:auto}body{display:block}.layout{display:block}.panel{margin-bottom:8px}.bottom{display:block}.code{font-size:12px;line-height:1.4}.cells,.pointer-track{overflow-x:auto}}
+
+/* Lecture layout: struct and buffer are adjacent; arrows sit directly under bytes. */
+.stream-columns{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);gap:clamp(8px,1.1vw,22px);align-items:start}
+.stream-columns .struct{font-size:clamp(13px,1.85vh,20px);line-height:1.5;padding:clamp(8px,1vh,14px)}
+.stream-columns .structline{grid-template-columns:18ch max-content;gap:3px}
+.buffer-side{min-width:0}.buffer-side .subhead{margin:0 0 10px;font-size:clamp(14px,1.9vh,19px)}
+.buffer-side .cells,.buffer-side .pointer-track{gap:clamp(2px,.25vw,5px)}
+.buffer-side .cell,.buffer-side .pointer-slot{flex:1 1 0;width:auto;min-width:0}
+.pointer-track{margin-top:1px}.pointer-label{margin:0 0 6px;padding-left:2px}
+.color-key{margin-top:6px}.buffer-side .color-key{display:grid;grid-template-columns:repeat(2,max-content);gap:5px 10px}
+@media(max-width:1150px){.stream-columns .struct{font-size:clamp(11px,1.65vh,16px)}.stream-columns{gap:7px}.stream-columns .structline{grid-template-columns:18ch max-content}}
+@media(max-width:700px){.stream-columns{grid-template-columns:1fr}.buffer-side .color-key{display:flex}}
+
+/* Keep markers in exactly the same grid tracks as their byte boxes. */
+#file, #filepointer, #buffer, #bufferpointer {display:grid;grid-template-columns:repeat(var(--byte-count),minmax(0,1fr));column-gap:clamp(2px,.35vw,5px);width:100%;overflow:visible;}
+#file .cell, #buffer .cell, #filepointer .pointer-slot, #bufferpointer .pointer-slot {width:100%;min-width:0;flex:none;}
+#filepointer, #bufferpointer {position:relative;height:clamp(20px,2.7vh,27px);margin-top:2px;padding:0;}
+#filepointer .pointer-slot, #bufferpointer .pointer-slot {height:100%;text-align:center;line-height:1;font-size:clamp(19px,2.7vh,26px);}
+.pointer-end {position:absolute;right:0;top:0;transform:translateX(50%);line-height:1;font-size:clamp(19px,2.7vh,26px);}
+.file-arrow .pointer-end{color:#7142b7}.buffer-arrow .pointer-end{color:#bd267d}
+.color-key, .buffer-side .color-key {font-size:clamp(14px,1.9vh,19px);font-weight:600;line-height:1.35;}
+.color-key .swatch {width:clamp(15px,2.1vh,20px);height:clamp(15px,2.1vh,20px);flex-shrink:0;}
+.color-key .key-item {gap:7px;}
+</style></head><body>
+<h1>Inside a buffered C file stream</h1>
+<div class="layout">
+<section class="panel"><div class="heading">C program <span class="small">— one line per step</span></div><div class="code" id="code"></div><div class="controls"><button id="next">Next line →</button><button id="reset" class="secondary">Reset</button></div><div id="message" class="message" aria-live="polite"></div></section>
+<section class="panel"><div class="heading">Local variables</div><div id="variables"></div><div class="subhead">Program output (stdout)</div><div id="output" class="output">—</div><div class="stats"><div class="stat">fgetc() calls<strong id="calls">0</strong></div><div class="stat">read() system calls<strong id="reads">0</strong></div><div class="stat">write() system calls<strong id="writes">0</strong></div></div></section>
+<div class="bottom"><section class="panel"><div class="sectionrow"><div class="heading">File on disk: <code>data.txt</code></div><select class="selector" id="filetext"><option value="hello world">hello world</option><option value="abcdefg">abcdefg</option><option value="cat">cat</option><option value="hi!">hi!</option></select></div><div id="file" class="cells"></div><div id="filepointer" class="pointer-track file-arrow"></div><div class="pointer-label offset-color">file_offset</div><div class="color-key"><span class="key-item"><i class="swatch used"></i>Already fetched</span><span class="key-item"><i class="swatch next"></i>Next to fetch</span></div><div class="osstate"><span>OS open-file state</span><strong>file_offset = <span id="offset">0</span></strong></div></section>
+<section class="panel"><div class="heading">Simplified FILE struct</div><div class="stream-columns"><div class="struct"><div>typedef struct {</div><div class="structline"><span>  int fd;</span><strong id="fd">—</strong></div><div class="structline"><span>  char buffer[4];</span><strong id="structbuffer">{ ·, ·, ·, · }</strong></div><div class="structline pos-field" id="posrow"><span>  int buffer_pos;</span><strong id="pos">0</strong></div><div class="structline"><span>  int buffer_length;</span><strong id="len">0</strong></div><div class="structline"><span>  int eof;</span><strong id="eof">0</strong></div><div class="structline"><span>  int error;</span><strong>0</strong></div><div>} SimpleFILE;</div></div><div class="buffer-side"><div class="subhead">Input buffer (4 bytes)</div><div id="buffer" class="cells"></div><div id="bufferpointer" class="pointer-track buffer-arrow"></div><div class="pointer-label pos-color">buffer_pos</div><div class="color-key"><span class="key-item"><i class="swatch used"></i>Already returned</span><span class="key-item"><i class="swatch next"></i>Next to return</span><span class="key-item"><i class="swatch unread"></i>Buffered</span><span class="key-item"><i class="swatch empty"></i>Empty</span></div></div></div></section></div>
+</div>
+
+<script>
+'use strict';
+const source=[
+'#include <stdio.h>',
+'#include <ctype.h>',
+'#include <unistd.h>',
+'',
+'int main(void) {',
+'    FILE *fp = fopen("data.txt", "r");',
+'    if (fp == NULL) {',
+'        perror("fopen");',
+'        return 1;',
+'    }',
+'',
+'    int c;',
+'    char upper;',
+'    while ((c = fgetc(fp)) != EOF) {',
+'        upper = (char)toupper((unsigned char)c);',
+'        write(STDOUT_FILENO, &upper, 1);',
+'    }',
+'',
+'    fclose(fp);',
+'    return 0;',
+'}'];
+const $=id=>document.getElementById(id);
+$('code').innerHTML=source.map((s,i)=>`<span class="line" data-line="${i+1}"><span class="line-number">${i+1}</span>${escapeHTML(s)||' '}</span>`).join('');
+function escapeHTML(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+const showChar=c=>c===' '?'␣':c;
+let s;
+function reset(){s={data:$('filetext').value,pc:6,fp:null,c:null,upper:null,buffer:[],pos:0,offset:0,eof:0,calls:0,reads:0,writes:0,out:'',done:false,msg:'Ready to execute fopen().',changed:[],changedFields:[]};render();}
+function changed(...names){s.changed=names;}
+function execute(){if(s.done)return;s.changed=[];s.changedFields=[];let n=s.pc;
+switch(n){
+case 6:s.fp='0x1000';s.pc=7;s.msg='fopen() opens data.txt and creates a FILE stream.';changed('fp');break;
+case 7:s.pc=12;s.msg='fp is not NULL; skip the error-handling block.';break;
+case 12:s.c='uninitialized';s.pc=13;s.msg='Declare local variable c.';changed('c');break;
+case 13:s.upper='uninitialized';s.pc=14;s.msg='Declare local variable upper.';changed('upper');break;
+case 14:{s.calls++;if(s.pos>=s.buffer.length){s.reads++;if(s.offset>=s.data.length){s.buffer=[];s.pos=0;s.eof=1;s.c='EOF';s.pc=19;s.msg='read() returns 0 bytes. fgetc() returns EOF; loop ends.';s.changedFields=['pos','eof'];changed('c');break;}s.buffer=[...s.data.slice(s.offset,s.offset+4)];s.offset+=s.buffer.length;s.pos=0;s.msg=`read() refills the buffer with ${s.buffer.length} byte(s); fgetc() returns one character.`;s.changedFields=['pos','offset'];}else{s.msg='fgetc() returns a character already in the buffer; no read() call.';}s.c=s.buffer[s.pos];s.pos++;s.pc=15;s.changedFields.push('pos');changed('c');break;}
+case 15:s.upper=s.c.toUpperCase();s.pc=16;s.msg='toupper() converts c to uppercase and initializes upper.';changed('upper');break;
+case 16:s.out+=s.upper;s.writes++;s.pc=14;s.msg='write() sends one byte to stdout; input buffer unchanged.';break;
+case 19:s.fp='closed';s.pc=20;s.msg='fclose() closes the input stream.';changed('fp');break;
+case 20:s.pc=21;s.msg='main returns 0.';break;
+case 21:s.done=true;s.msg='Program finished.';break;
+}render();}
+function varRow(name,value){return `<div class="var-row ${s.changed.includes(name)?'changed':''}"><span class="var-name">${name}</span><span class="var-value">${escapeHTML(value)}</span></div>`;}
+function render(){document.querySelectorAll('.line').forEach(x=>x.classList.toggle('active',Number(x.dataset.line)===s.pc&&!s.done));
+let rows=varRow('fp',s.fp===null?'—':s.fp==='closed'?'closed (no longer valid)':s.fp);
+rows+=varRow('c',s.c===null?'—':s.c==='EOF'?'EOF (-1)':s.c==='uninitialized'?'—':`'${showChar(s.c)}' (${s.c.charCodeAt(0)})`);
+rows+=varRow('upper',s.upper===null||s.upper==='uninitialized'?'—':`'${showChar(s.upper)}'`);
+$('variables').innerHTML=rows;
+$('output').textContent=s.out||'—';$('message').textContent=s.msg;
+for(let id of ['calls','reads','writes','pos','offset','eof'])$(id).textContent=s[id];$('fd').textContent=s.fp===null?'—':s.fp==='closed'?'closed':'3';$('len').textContent=s.buffer.length;
+$('structbuffer').textContent='{ '+Array.from({length:4},(_,i)=>i<s.buffer.length?showChar(s.buffer[i]):'·').join(', ')+' }';
+$('file').style.setProperty('--byte-count',s.data.length);$('filepointer').style.setProperty('--byte-count',s.data.length);$('buffer').style.setProperty('--byte-count',4);$('bufferpointer').style.setProperty('--byte-count',4);
+$('file').innerHTML=[...s.data].map((c,i)=>`<div class="cell ${i<s.offset?'used':i===s.offset?'next':''}"><small>${i}</small>${escapeHTML(showChar(c))}</div>`).join('');
+$('buffer').innerHTML=Array.from({length:4},(_,i)=>`<div class="cell ${i>=s.buffer.length?'empty':i<s.pos?'used':i===s.pos?'next':'unread'}"><small>${i}</small>${i<s.buffer.length?escapeHTML(showChar(s.buffer[i])):'·'}</div>`).join('');
+$('filepointer').innerHTML=Array.from({length:s.data.length},(_,i)=>`<div class="pointer-slot ${i===s.offset?'target':''}">${i===s.offset?'▲':''}</div>`).join('')+(s.offset===s.data.length?'<span class="pointer-end">▲</span>':'');
+$('bufferpointer').innerHTML=Array.from({length:4},(_,i)=>`<div class="pointer-slot ${i===s.pos?'target':''}">${i===s.pos?'▲':''}</div>`).join('')+(s.pos===4?'<span class="pointer-end">▲</span>':'');
+$('posrow').classList.toggle('changed',s.changedFields.includes('pos'));$('offset').parentElement.classList.toggle('changed',s.changedFields.includes('offset'));
+$('next').disabled=s.done;$('next').textContent=s.done?'Finished':'Execute highlighted line →';}
+$('next').addEventListener('click',execute);$('reset').addEventListener('click',reset);$('filetext').addEventListener('change',reset);reset();
+</script></body></html>
